@@ -132,17 +132,24 @@ class DQNAgent:
 @st.cache_resource(show_spinner=False)
 def create_env(map_name, is_slippery):
     """Initialize the FrozenLake environment."""
+    env_id = 'FrozenLake-v1'
+    
     if map_name == '4x4':
         desc = ["SFFF", "FHFH", "FFFH", "HFFG"]
+        # Use custom desc for 4x4
+        env = gym.make(env_id, is_slippery=is_slippery, desc=desc)
     elif map_name == '8x8':
-        desc = None # Use default 8x8 map
+        # Use default 8x8 map by passing map_name
+        env = gym.make(env_id, is_slippery=is_slippery, map_name='8x8')
+        desc = env.desc.tolist() # Convert NumPy array of bytes/strings to list for consistency
     else:
-        # Custom 8x8 (though map_choice limits this)
-        desc = ["SFFFFFFF", "FFFFFFFF", "FFFHFFFF", "FFFFFHFF", "FFFHFFFF", "FHHFFFHF", "FHFFHFHF", "FFFHFFFG"]
-    
-    env_id = 'FrozenLake-v1'
-    # 'ansi' render_mode is sufficient for print/text-based policy display
-    env = gym.make(env_id, is_slippery=is_slippery, map_name=map_name if map_name == '8x8' else None, desc=desc if map_name != '8x8' else None)
+        # Fallback (shouldn't happen with current UI)
+        env = gym.make(env_id, is_slippery=is_slippery)
+        desc = env.desc.tolist() 
+
+    # The actual description used by the environment is now stored, 
+    # ensuring it is a list for easy access in visualization.
+    st.session_state.map_description = desc
     
     state_size = env.observation_space.n
     action_size = env.action_space.n
@@ -224,6 +231,9 @@ def extract_policy(env, agent):
 
 def visualize_policy(env, policy):
     """Renders the policy grid using Matplotlib."""
+    # Use the map description stored in session state
+    map_desc = st.session_state.get('map_description', env.desc.tolist() if isinstance(env.desc, np.ndarray) else env.desc)
+    
     # Convert state indices to a grid format (assuming square map)
     map_size = int(np.sqrt(env.observation_space.n))
     
@@ -251,9 +261,15 @@ def visualize_policy(env, policy):
             action = grid[i, j]
             symbol = action_symbols.get(action, '?')
             
-            # Get the state type from the environment map
-            # env.desc contains bytes, so we decode them
-            state_char = env.desc[i][j].decode('utf-8')
+            # Get the state type from the map description
+            state_element = map_desc[i][j]
+            
+            # Ensure the state character is a string (handle potential bytes from np array conversion)
+            if isinstance(state_element, (bytes, np.bytes_)):
+                state_char = state_element.decode('utf-8')
+            else:
+                # If it's already a string, take the character
+                state_char = str(state_element)
             
             # Color map for the grid cells
             color = 'lightgreen' if state_char == 'G' else ('lightcoral' if state_char == 'H' else ('skyblue' if state_char == 'S' else 'white'))
@@ -315,6 +331,7 @@ with st.sidebar:
     env, state_size, action_size = create_env(map_choice, is_slippery)
     
     if 'agent' not in st.session_state or st.button("Reset Agent/Env"):
+        # This block now relies on create_env also setting st.session_state.map_description
         st.session_state.env = env
         st.session_state.state_size = state_size
         st.session_state.action_size = action_size
@@ -331,6 +348,7 @@ if st.sidebar.button("🚀 Train Agent", type="primary", use_container_width=Tru
     current_hash = hash((map_choice, is_slippery, gamma, lr, num_episodes, eps_start, eps_end, eps_decay, batch_size, memory_size, target_update))
     if current_hash != st.session_state.config_hash:
         st.warning("Configuration changed. Re-initializing Agent...")
+        # Re-creating environment also updates st.session_state.map_description
         st.session_state.env, st.session_state.state_size, st.session_state.action_size = create_env(map_choice, is_slippery)
         st.session_state.agent = DQNAgent(
             st.session_state.state_size, 
