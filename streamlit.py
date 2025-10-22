@@ -137,7 +137,7 @@ def create_env(map_name, is_slippery):
     elif map_name == '8x8':
         desc = None # Use default 8x8 map
     else:
-        # Custom 8x8
+        # Custom 8x8 (though map_choice limits this)
         desc = ["SFFFFFFF", "FFFFFFFF", "FFFHFFFF", "FFFFFHFF", "FFFHFFFF", "FHHFFFHF", "FHFFHFHF", "FFFHFFFG"]
     
     env_id = 'FrozenLake-v1'
@@ -252,8 +252,10 @@ def visualize_policy(env, policy):
             symbol = action_symbols.get(action, '?')
             
             # Get the state type from the environment map
+            # env.desc contains bytes, so we decode them
             state_char = env.desc[i][j].decode('utf-8')
             
+            # Color map for the grid cells
             color = 'lightgreen' if state_char == 'G' else ('lightcoral' if state_char == 'H' else ('skyblue' if state_char == 'S' else 'white'))
             
             ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor=color, edgecolor='black', linewidth=1))
