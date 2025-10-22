@@ -134,21 +134,20 @@ def create_env(map_name, is_slippery):
     """Initialize the FrozenLake environment."""
     env_id = 'FrozenLake-v1'
     
+    # 1. Create the environment (which includes the TimeLimit wrapper)
     if map_name == '4x4':
         desc = ["SFFF", "FHFH", "FFFH", "HFFG"]
-        # Use custom desc for 4x4
         env = gym.make(env_id, is_slippery=is_slippery, desc=desc)
     elif map_name == '8x8':
-        # Use default 8x8 map by passing map_name
         env = gym.make(env_id, is_slippery=is_slippery, map_name='8x8')
-        desc = env.desc.tolist() # Convert NumPy array of bytes/strings to list for consistency
+        # Access the unwrapped environment to get the description
+        desc = env.unwrapped.desc.tolist() 
     else:
-        # Fallback (shouldn't happen with current UI)
         env = gym.make(env_id, is_slippery=is_slippery)
-        desc = env.desc.tolist() 
+        desc = env.unwrapped.desc.tolist()
 
-    # The actual description used by the environment is now stored, 
-    # ensuring it is a list for easy access in visualization.
+    # 2. Store the map description to session state
+    # This prevents accessing env.desc (which is missing on the TimeLimit wrapper) later.
     st.session_state.map_description = desc
     
     state_size = env.observation_space.n
@@ -231,9 +230,13 @@ def extract_policy(env, agent):
 
 def visualize_policy(env, policy):
     """Renders the policy grid using Matplotlib."""
-    # Use the map description stored in session state
-    map_desc = st.session_state.get('map_description', env.desc.tolist() if isinstance(env.desc, np.ndarray) else env.desc)
+    # Rely exclusively on the map description stored in session state
+    map_desc = st.session_state.get('map_description')
     
+    if map_desc is None:
+        # Fallback for safety, though create_env should always set this now
+        map_desc = env.unwrapped.desc.tolist() 
+
     # Convert state indices to a grid format (assuming square map)
     map_size = int(np.sqrt(env.observation_space.n))
     
